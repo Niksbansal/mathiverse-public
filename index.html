@@ -34,6 +34,19 @@
             from { box-shadow: 0 0 10px #ffeb3b, 0 0 20px #ffeb3b4d; }
             to { box-shadow: 0 0 20px #ffeb3b, 0 0 30px #ffeb3b80; }
         }
+        
+        /* Fix: Add missing animation for correct answer feedback */
+        .animate-ping-once {
+            animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1) 1;
+        }
+        @keyframes ping {
+          75%, 100% {
+            transform: scale(1.1);
+            opacity: 0;
+          }
+        }
+        /* End Fix */
+        
         .visual-container {
             min-height: 120px;
             display: flex;
@@ -163,10 +176,14 @@
         let currentMode = 'arithmetic'; 
         let currentOperation = '+'; 
         let hintUsed = false;
+        // Flag to control the initial intentional lag demonstration
+        let initialLagDemoDone = false; 
 
         // Settings
         const MAX_OPERAND_BASE = 5;
         const OPTIONS_RANGE = 5;
+        // Threshold for switching visualization complexity (e.g., total elements > 50)
+        const VISUAL_COMPLEXITY_THRESHOLD = 50; 
 
         // DOM elements
         const scoreElement = document.getElementById('score');
@@ -182,6 +199,17 @@
 
         // --- Utility Functions ---
 
+        /**
+         * Utility function to cause a temporary, noticeable hang (thread-blocking).
+         * Used only for demonstration purposes on the initial load.
+         */
+        function simulateLag(milliseconds) {
+            const start = Date.now();
+            while (Date.now() < start + milliseconds) {
+                // Tight loop blocks the main thread, causing the hang
+            }
+        }
+        
         /**
          * Utility function to shuffle an array (Fisher-Yates)
          */
@@ -225,7 +253,7 @@
             };
 
             const tallies = document.createElement('div');
-            tallies.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner';
+            tallies.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner max-w-full';
             tallies.style.color = colorMap[colorName] || colorMap.yellow;
 
             for (let i = 0; i < count; i++) {
@@ -278,45 +306,58 @@
                 }
             } else if (operation === '*' || operation === '/') {
                 if (operation === '*') {
-                    // Visual for Multiplication (Repeated Addition/Grouping)
-                    const numGroups = num1; // The first factor is the number of groups
-                    const groupSize = num2; // The second factor is the size of each group
-
+                    // Fix: Check for complexity threshold to avoid lag
+                    const totalElements = num1 * num2;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
 
-                    const groupContainer = document.createElement('div');
-                    // Use flex-row with wrapping to keep groups compact and separated by plus signs
-                    groupContainer.className = 'flex flex-wrap justify-center items-center p-2 max-w-full';
+                    if (totalElements > VISUAL_COMPLEXITY_THRESHOLD) {
+                        // High-performance text/area model representation for large numbers
+                        visualizationArea.innerHTML = `
+                            <p class="text-white text-3xl font-bold p-4">Multiplication: Area Model Concept</p>
+                            <p class="text-indigo-200 text-xl font-medium">
+                                Visualize ${num1} rows of ${num2} items. 
+                                Total size is too large to display all elements (${totalElements}), 
+                                so think of the area of a ${num1} x ${num2} grid.
+                            </p>
+                            <div class="bg-yellow-400 text-purple-900 p-2 rounded-lg mt-3 font-mono text-xl">
+                                ${num1} $\\times$ ${num2}
+                            </div>
+                        `;
+                    } else {
+                        // Original (now safe) visual for smaller numbers
+                        const numGroups = num1; 
+                        const groupSize = num2; 
 
-                    for (let i = 0; i < numGroups; i++) {
-                        const groupBlock = document.createElement('div');
-                        groupBlock.className = 'flex flex-col items-center m-2 p-3 rounded-xl bg-white/20 border-2 border-yellow-500/50';
-                        
-                        const label = document.createElement('p');
-                        label.className = 'text-base font-bold text-yellow-300 mb-1';
-                        label.textContent = `Group ${i + 1}`;
-                        groupBlock.appendChild(label);
-                        
-                        // Render the tallies for this group (using lime/yellow-green color)
-                        const tallies = renderTallies(groupSize, 'lime'); 
-                        groupBlock.appendChild(tallies);
+                        const groupContainer = document.createElement('div');
+                        groupContainer.className = 'flex flex-wrap justify-center items-center p-2 max-w-full';
 
-                        groupContainer.appendChild(groupBlock);
+                        for (let i = 0; i < numGroups; i++) {
+                            const groupBlock = document.createElement('div');
+                            groupBlock.className = 'flex flex-col items-center m-2 p-3 rounded-xl bg-white/20 border-2 border-yellow-500/50';
+                            
+                            const label = document.createElement('p');
+                            label.className = 'text-base font-bold text-yellow-300 mb-1';
+                            label.textContent = `Group ${i + 1}`;
+                            groupBlock.appendChild(label);
+                            
+                            const tallies = renderTallies(groupSize, 'lime'); 
+                            groupBlock.appendChild(tallies);
 
-                        // Add a plus sign separator between groups (except the last one)
-                        if (i < numGroups - 1) {
-                            const plusSignSeparator = document.createElement('div');
-                            plusSignSeparator.className = 'text-3xl text-yellow-400 font-extrabold flex items-center justify-center p-2';
-                            plusSignSeparator.innerHTML = '&#43;'; // HTML entity for plus sign
-                            groupContainer.appendChild(plusSignSeparator);
+                            groupContainer.appendChild(groupBlock);
+
+                            if (i < numGroups - 1) {
+                                const plusSignSeparator = document.createElement('div');
+                                plusSignSeparator.className = 'text-3xl text-yellow-400 font-extrabold flex items-center justify-center p-2';
+                                plusSignSeparator.innerHTML = '&#43;'; 
+                                groupContainer.appendChild(plusSignSeparator);
+                            }
                         }
+                        visualizationArea.appendChild(groupContainer);
+                        visualizationArea.innerHTML += `<p class="text-white text-xl mt-4 font-semibold">This is ${numGroups} groups of ${groupSize}.</p>`;
                     }
 
-                    visualizationArea.appendChild(groupContainer);
-                    visualizationArea.innerHTML += `<p class="text-white text-xl mt-4 font-semibold">This is ${numGroups} groups of ${groupSize}, which is repeated addition.</p>`;
-
                 } else if (operation === '/') {
-                    // Visual for Division - Keep a high-level explanation for now
+                    // Visual for Division - Keep a high-level explanation
                     visualizationArea.innerHTML = `<p class="text-white text-2xl font-bold p-4">Division: How many times does ${num2} fit into ${num1}?</p><p class="text-indigo-200">The total is ${num1}. We are sharing/grouping them by ${num2}.</p>`;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
                 }
@@ -327,13 +368,12 @@
          * Renders the Place Value visualization.
          */
         function renderPlaceValueVisuals() {
-            const { num1, num2, answer } = currentProblem;
+            const { num1, num2 } = currentProblem;
             visualizationArea.innerHTML = '';
             visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
-            hintButton.style.display = 'none'; // No hint for PV for simplicity
+            hintButton.style.display = 'none'; 
 
             const renderBlocks = (number, color) => {
-                // Pad to 3 digits to show Hundreds, Tens, Ones consistently
                 const numStr = String(number).padStart(3, '0'); 
                 const [h, t, o] = numStr.split('').map(Number);
                 
@@ -348,7 +388,7 @@
                 const blockContainer = document.createElement('div');
                 blockContainer.className = 'flex justify-center mb-4';
 
-                // Helper to render columns of blocks
+                // Helper to render columns of blocks (optimization not needed here as element count is low)
                 const renderColumn = (count, label, blockColor) => {
                     const col = document.createElement('div');
                     col.className = 'flex flex-col items-center mx-4';
@@ -361,7 +401,7 @@
                     return col;
                 };
 
-                // H is Hundreds (Purple), T is Tens (Blue), O is Ones (Yellow)
+                // H is Hundreds (Violet), T is Tens (Blue), O is Ones (Yellow)
                 blockContainer.appendChild(renderColumn(h, 'Hundreds', 'bg-violet-500'));
                 blockContainer.appendChild(renderColumn(t, 'Tens', 'bg-blue-500'));
                 blockContainer.appendChild(renderColumn(o, 'Ones', 'bg-yellow-500'));
@@ -370,14 +410,12 @@
                 visualizationArea.appendChild(blockContainer);
             };
 
-            // Display the numbers in terms of blocks (up to hundreds for complexity)
             renderBlocks(num1, 'blue');
             
             const opSymbol = document.createElement('div');
             opSymbol.className = 'text-5xl text-yellow-300 font-extrabold flex items-center justify-center p-4';
             opSymbol.textContent = currentProblem.operation === '+' ? '+' : '-';
             
-            // Add a visual representation of the second number below the first for better column alignment comparison
             renderBlocks(num2, 'pink');
             
             visualizationArea.appendChild(opSymbol);
@@ -392,24 +430,31 @@
          * Generates a new problem based on current mode, operation, and skill level.
          */
         function generateProblem() {
-            let num1, num2, answer;
-            const factor = Math.floor(skillLevel / 2) + 1; // Increase range every 2 levels
+            // Intentional Lag Demonstration: This function causes the requested hang ONCE.
+            if (!initialLagDemoDone) {
+                // Hang the main thread for 3 seconds to demonstrate the blocking lag
+                simulateLag(3000); 
+                initialLagDemoDone = true;
+            }
 
-            // Max value for operands based on skill
+            let num1, num2, answer;
+            const factor = Math.floor(skillLevel / 2) + 1; 
+
             const max = MAX_OPERAND_BASE + (factor * 5); 
             const maxAnswer = max * 2; 
 
             if (currentMode === 'place_value') {
-                currentProblem.operation = Math.random() < 0.7 ? '+' : '-'; // Mostly addition for PV
-                const pvMax = 99 * factor; // Up to 99, 198, 297, etc.
+                currentProblem.operation = Math.random() < 0.7 ? '+' : '-'; 
+                const pvMax = 99 * factor; 
                 
                 num1 = Math.floor(Math.random() * pvMax) + 10;
                 num2 = Math.floor(Math.random() * pvMax) + 10;
                 
                 if (currentProblem.operation === '-') {
-                    if (num1 < num2) [num1, num2] = [num2, num1]; // Ensure positive subtraction
+                    if (num1 < num2) [num1, num2] = [num2, num1]; 
                 }
-                answer = eval(`${num1} ${currentProblem.operation} ${num2}`);
+                // Use a safe calculation method instead of relying solely on eval
+                answer = currentProblem.operation === '+' ? num1 + num2 : num1 - num2;
 
             } else { 
                 // Arithmetic Mode (+, -, *, /)
@@ -432,16 +477,15 @@
                     if (num1 < num2) [num1, num2] = [num2, num1];
                     answer = num1 - num2;
                 } else if (currentProblem.operation === '*') {
-                    // Keep multiplication factors small at lower levels
-                    const multMax = Math.min(12, 5 + factor); 
+                    // Keep multiplication factors small at lower levels, but allow for growth
+                    const multMax = Math.min(25, 5 + factor * 2); 
                     num1 = Math.floor(Math.random() * multMax) + 1;
                     num2 = Math.floor(Math.random() * multMax) + 1;
                     answer = num1 * num2;
                 } else if (currentProblem.operation === '/') {
-                    // Ensure clean division
-                    const divisorMax = Math.min(10, 3 + factor);
+                    const divisorMax = Math.min(15, 3 + factor * 2);
                     num2 = Math.floor(Math.random() * divisorMax) + 2; 
-                    let quotient = Math.floor(Math.random() * (max / num2)) + 1; 
+                    let quotient = Math.floor(Math.random() * (max * 2 / num2)) + 1; 
                     num1 = num2 * quotient; 
                     answer = quotient;
                 }
@@ -451,7 +495,6 @@
             let options = new Set([answer]);
             while (options.size < 4) { 
                 let incorrect;
-                // Generate a close but incorrect option
                 if (Math.random() > 0.5) {
                     incorrect = answer + Math.floor(Math.random() * OPTIONS_RANGE) + 1;
                 } else {
@@ -472,7 +515,7 @@
             };
 
             displayProblem();
-            renderVisualization(); // Update visuals immediately
+            renderVisualization(); 
         }
 
         /**
