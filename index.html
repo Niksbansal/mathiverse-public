@@ -469,24 +469,38 @@
          * Renders the Place Value visualization (Hundreds, Tens, Ones).
          */
         function renderPlaceValueVisuals() {
-            const { num1, num2 } = currentProblem;
+            const { num1, targetDigit, targetPlace, answer } = currentProblem;
             visualizationArea.innerHTML = '';
             visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
             
-            // Function to render the decomposition into blocks
-            const renderBlocks = (number) => {
-                // Ensure the number is treated as a three-digit number for visualization
+            /**
+             * Helper to render the decomposition into blocks.
+             */
+            const renderBlocks = (number, highlightPlace) => {
+                // Ensure the number is treated as a three-digit string for consistent parsing
                 const numStr = String(number).padStart(3, '0');
-                const [h, t, o] = numStr.split('').map(Number);
+                const digits = numStr.split('').map(Number);
+                
+                // Adjust indices based on actual number length for correct digit mapping
+                const h = digits.length === 3 ? digits[0] : 0;
+                const t = digits.length >= 2 ? digits[digits.length - 2] : 0;
+                const o = digits[digits.length - 1];
                 
                 const blockContainer = document.createElement('div');
                 blockContainer.className = 'flex justify-center mb-4 flex-wrap';
 
                 // Helper to render columns of blocks
-                const renderColumn = (count, label, blockType, blockColor) => {
+                const renderColumn = (count, label, blockType, blockColor, placeName) => {
+                    const isHighlighted = placeName === highlightPlace;
+                    // Use a brighter color and ring for the highlighted column
+                    const highlightClass = isHighlighted ? 'bg-yellow-500/20 ring-4 ring-yellow-300' : 'bg-white/10';
                     const col = document.createElement('div');
-                    col.className = 'flex flex-col items-center mx-4 my-2 p-3 bg-white/10 rounded-lg shadow-inner';
-                    col.innerHTML = `<p class="text-lg font-bold text-yellow-300 mb-1">${label}</p>`;
+                    col.className = `flex flex-col items-center mx-4 my-2 p-3 rounded-lg shadow-inner transition duration-300 ${highlightClass}`;
+                    
+                    // Label text color
+                    const labelColor = isHighlighted ? 'text-yellow-300' : 'text-yellow-500';
+
+                    col.innerHTML = `<p class="text-lg font-bold ${labelColor} mb-1">${label}</p>`;
                     
                     if (blockType !== 'one-block') {
                          for (let i = 0; i < count; i++) {
@@ -508,28 +522,42 @@
 
                     // Show the digit count at the bottom
                     col.innerHTML += `<p class="text-white font-extrabold text-2xl mt-2">${count}</p>`;
+                    
+                    // Show the VALUE of the highlighted column
+                    if (isHighlighted) {
+                        col.innerHTML += `<p class="text-red-400 font-extrabold text-base mt-1">Value: ${currentProblem.answer}</p>`;
+                    }
                     return col;
                 };
 
-                // Use standard Base-Ten Block colors: Hundreds (Violet), Tens (Blue), Ones (Yellow)
-                blockContainer.appendChild(renderColumn(h, 'Hundreds (Flats)', 'hundred-block', 'bg-violet-500'));
-                blockContainer.appendChild(renderColumn(t, 'Tens (Rods)', 'ten-block', 'bg-blue-500'));
-                blockContainer.appendChild(renderColumn(o, 'Ones (Units)', 'one-block', 'bg-yellow-500')); // Uses inner logic above
+                // Render Hundreds if needed
+                if (number >= 100) {
+                    blockContainer.appendChild(renderColumn(h, 'Hundreds', 'hundred-block', 'bg-violet-500', 'hundreds'));
+                }
+                // Render Tens if needed
+                if (number >= 10 || number === 0) { // Always show tens and ones for numbers > 9
+                    blockContainer.appendChild(renderColumn(t, 'Tens', 'ten-block', 'bg-blue-500', 'tens'));
+                }
+                // Render Ones
+                blockContainer.appendChild(renderColumn(o, 'Ones', 'one-block', 'bg-yellow-500', 'ones'));
                 
                 visualizationArea.appendChild(blockContainer);
             };
 
             
-            visualizationArea.innerHTML += `<p class="text-white text-2xl">First, calculate: ${num1} ${currentProblem.operation} ${num2}</p>`;
-            visualizationArea.innerHTML += `<p class="text-white text-lg mb-4">The **result** is ${currentProblem.fullAnswer}. Its Base-Ten decomposition (Pictorial) is shown below:</p>`;
+            visualizationArea.innerHTML += `<p class="text-white text-3xl font-bold mb-4">Target Number: <span class="text-yellow-300">${num1}</span></p>`;
+            visualizationArea.innerHTML += `<p class="text-white text-lg mb-4">The number is decomposed into **Base-Ten Blocks** (Pictorial) below. Pay attention to the highlighted column!</p>`;
             
-            // Pass the full answer to renderBlocks
-            renderBlocks(currentProblem.fullAnswer); 
+            // Render blocks for the generated number and highlight the target place
+            renderBlocks(num1, targetPlace); 
             
             // Set the final question in the problem box
-            problemTextElement.textContent = `Given the result is ${currentProblem.fullAnswer}, what is the value of the **Hundreds** digit?`; 
+            problemTextElement.textContent = `In the number ${num1}, what is the **VALUE** of the digit **${targetDigit}** (the ${targetPlace} place)?`; 
             
-            visualizationArea.innerHTML += `<p class="text-indigo-200 text-xl mt-4">Which option corresponds to the count of the 'Hundreds' blocks (Violet Flats)?</p>`;
+            visualizationArea.innerHTML += `<p class="text-indigo-200 text-xl mt-4">Which option equals the total value of the blocks in the ${targetPlace} column?</p>`;
+
+            // Since we set the prompt text here, we need to call displayOptions manually
+            displayOptions();
         }
 
         // --- Problem Generation ---
@@ -545,43 +573,89 @@
             const maxAnswer = max * 2; 
 
             if (currentMode === 'place_value') {
-                const pvMax = 99 * factor; 
                 
-                // Place Value problem setup (Max result 999)
-                currentProblem.operation = Math.random() < 0.7 ? '+' : '-'; 
-                
-                // Max initial operands that won't result in more than 3 digits usually
-                num1 = Math.floor(Math.random() * 499) + 10;
-                num2 = Math.floor(Math.random() * 499) + 10;
+                // Max number generated increases with skill level, up to 999
+                const maxNum = Math.min(999, 99 + factor * 100); 
+                num1 = Math.floor(Math.random() * (maxNum - 10)) + 10; // Ensure at least a two-digit number
 
-                if (currentProblem.operation === '-') {
-                    if (num1 < num2) [num1, num2] = [num2, num1]; 
+                const numStr = String(num1);
+                const digits = numStr.split('').map(Number);
+                // Determines available places based on the number length
+                const places = ['ones', 'tens', 'hundreds'].slice(0, digits.length).reverse(); 
+
+                // Select a random place to quiz the user on (ensure the digit is not 0 in the target place for now)
+                let targetPlace, targetDigit;
+                let validPlaces = places.filter(place => {
+                    if (place === 'ones' && digits[digits.length - 1] !== 0) return true;
+                    if (place === 'tens' && digits.length >= 2 && digits[digits.length - 2] !== 0) return true;
+                    if (place === 'hundreds' && digits.length === 3 && digits[digits.length - 3] !== 0) return true;
+                    return false;
+                });
+                
+                // If all digits are 0 (e.g., 100, 20), allow the 0 digit to be the target for the smaller place
+                if (validPlaces.length === 0) validPlaces = places;
+
+                targetPlace = validPlaces[Math.floor(Math.random() * validPlaces.length)];
+
+                let placeValue; // The numerical value: 1, 10, or 100
+                
+                if (targetPlace === 'ones') {
+                    targetDigit = digits[digits.length - 1];
+                    placeValue = 1;
+                } else if (targetPlace === 'tens') {
+                    targetDigit = digits[digits.length - 2];
+                    placeValue = 10;
+                } else if (targetPlace === 'hundreds') {
+                    targetDigit = digits[digits.length - 3];
+                    placeValue = 100;
                 }
-                
-                let tempAnswer = currentProblem.operation === '+' ? num1 + num2 : num1 - num2;
 
-                // The *actual* answer for the place value question is the hundreds digit of the result
-                const hundredsDigit = Math.floor(tempAnswer / 100) % 10;
-                answer = hundredsDigit;
+                // The correct answer is the actual VALUE (e.g., 7 * 10 = 70)
+                answer = targetDigit * placeValue; 
 
-                // Store full numbers for the prompt, the full answer for visualization, and the digit as the answer
-                currentProblem.num1 = num1;
-                currentProblem.num2 = num2;
-                currentProblem.operation = currentProblem.operation;
-                currentProblem.fullAnswer = tempAnswer; // Store the full number result
-                currentProblem.answer = answer; // The final answer is the HUNDREDS DIGIT
+                // Store problem data
+                currentProblem = {
+                    num1,
+                    targetDigit,
+                    targetPlace,
+                    answer,
+                    operation: 'place_value',
+                    options: []
+                };
 
-                // Max options range for a digit is 0-9
+                // Generate options: The target digit, the target digit's value, and two incorrect values
                 let options = new Set([answer]);
+                
+                // Add the target digit itself (a very common mistake in place value)
+                options.add(targetDigit); 
+                
+                // Add incorrect options: based on nearby values or incorrect place value (e.g., 700 instead of 70)
                 while (options.size < 4) { 
-                    const incorrect = Math.floor(Math.random() * 10);
-                    options.add(incorrect);
+                    let incorrect = 0;
+
+                    if (Math.random() < 0.5) {
+                         // Incorrect: Off by one place value (e.g., if answer is 70, suggest 7 or 700)
+                        if (placeValue === 10) {
+                            incorrect = Math.random() < 0.5 ? targetDigit * 1 : targetDigit * 100;
+                        } else if (placeValue === 1) {
+                            incorrect = targetDigit * 10;
+                        } else if (placeValue === 100) {
+                            incorrect = targetDigit * 10;
+                        }
+                    } else {
+                        // Incorrect: Off by a small amount from the correct answer
+                        incorrect = answer + (Math.floor(Math.random() * 2) * placeValue);
+                    }
+                    
+                    if (incorrect >= 0 && incorrect !== answer && incorrect <= 1000) {
+                        options.add(incorrect);
+                    }
                 }
                 currentProblem.options = shuffleArray(Array.from(options));
 
 
             } else { 
-                // Arithmetic Mode (+, -, *, /)
+                // --- ARITHMETIC MODE (Original Logic) ---
                 const operation = currentOperation;
 
                 if (operation === '+') {
@@ -617,7 +691,7 @@
                         incorrect = answer - Math.floor(Math.random() * OPTIONS_RANGE) - 1;
                     }
                     
-                    if (incorrect >= 0 && incorrect >= 0) { // Keep options non-negative
+                    if (incorrect >= 0) { // Keep options non-negative
                         options.add(incorrect);
                     }
                 }
@@ -631,7 +705,7 @@
                 };
             }
             
-            // If it's a place value question, the prompt is set in renderPlaceValueVisuals
+            // For Place Value mode, the problem text and options are set in renderPlaceValueVisuals
             if (currentMode !== 'place_value') {
                 displayProblem();
             }
@@ -645,6 +719,13 @@
         function displayProblem() {
             const opSymbol = currentProblem.operation === '*' ? '×' : (currentProblem.operation === '/' ? '÷' : currentProblem.operation);
             problemTextElement.textContent = `What is ${currentProblem.num1} ${opSymbol} ${currentProblem.num2}?`;
+            displayOptions();
+        }
+
+        /**
+         * Populates the options buttons. Used by both arithmetic and place_value modes.
+         */
+        function displayOptions() {
             optionsContainer.innerHTML = ''; 
 
             currentProblem.options.forEach(option => {
@@ -665,7 +746,9 @@
             hintUsed = true;
             // Temporarily replace the problem text with the answer
             const opSymbol = currentProblem.operation === '*' ? '×' : (currentProblem.operation === '/' ? '÷' : currentProblem.operation);
-            const originalText = `What is ${currentProblem.num1} ${opSymbol} ${currentProblem.num2}?`;
+            const originalText = currentMode === 'place_value' 
+                ? `In the number ${currentProblem.num1}, what is the **VALUE** of the digit **${currentProblem.targetDigit}** (the ${currentProblem.targetPlace} place)?`
+                : `What is ${currentProblem.num1} ${opSymbol} ${currentProblem.num2}?`;
 
             problemTextElement.textContent = `The answer is: ${currentProblem.answer}. Now, can you find it?`;
             
@@ -701,7 +784,9 @@
                 setTimeout(() => {
                     document.querySelectorAll('.btn-option').forEach(btn => btn.disabled = false);
                     problemContainer.classList.remove('animate-ping-once');
-                    generateProblem(); // Auto next question
+                    
+                    // FIX: Use setTimeout(0) to defer the synchronous generateProblem call
+                    setTimeout(generateProblem, 0);
                 }, 1000); 
 
             } else {
@@ -714,7 +799,9 @@
                     document.querySelectorAll('.btn-option').forEach(btn => btn.disabled = false);
                     feedbackMessage.textContent = "Choose the correct answer!";
                     feedbackContainer.className = 'mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center';
-                    generateProblem(); // Move to next problem
+                    
+                    // FIX: Use setTimeout(0) to defer the synchronous generateProblem call
+                    setTimeout(generateProblem, 0);
                 }, 2500);
             }
         }
@@ -735,7 +822,8 @@
                 }
             });
 
-            generateProblem();
+            // generateProblem is called via resetGame's deferred call
+            // generateProblem(); 
         }
 
         /**
@@ -754,7 +842,9 @@
             setTimeout(() => {
                 feedbackMessage.textContent = "Choose the correct answer!";
                 feedbackContainer.className = 'mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center';
-                generateProblem();
+                
+                // FIX: Use setTimeout(0) to defer the synchronous generateProblem call
+                setTimeout(generateProblem, 0);
             }, 1000);
         }
 
