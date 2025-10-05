@@ -17,7 +17,7 @@
         }
         .math-card {
             box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
-            max-width: 768px; /* Slightly wider for better visual space */
+            max-width: 900px; /* Slightly wider for the new buttons */
         }
         .btn-option, .btn-mode {
             transition: all 0.15s ease-in-out;
@@ -35,7 +35,6 @@
             to { box-shadow: 0 0 20px #ffeb3b, 0 0 30px #ffeb3b80; }
         }
         
-        /* Fix: Add missing animation for correct answer feedback */
         .animate-ping-once {
             animation: ping 0.5s cubic-bezier(0, 0, 0.2, 1) 1;
         }
@@ -45,7 +44,6 @@
             opacity: 0;
           }
         }
-        /* End Fix */
         
         .visual-container {
             min-height: 120px;
@@ -76,18 +74,18 @@
             opacity: 0.8;
             border-radius: 2px;
         }
-        .star-svg {
-            display: inline-block;
-            margin: 4px;
-            width: 24px;
-            height: 24px;
-        }
         /* High contrast colors for operations */
         .op-add { background-color: #059669; } /* Emerald */
         .op-sub { background-color: #dc2626; } /* Red */
         .op-mul { background-color: #f59e0b; } /* Amber */
         .op-div { background-color: #3b82f6; } /* Blue */
         .op-place { background-color: #9333ea; } /* Violet */
+
+        .active-op {
+            background-color: #facc15 !important; /* Yellow */
+            color: #4c1d95 !important; /* Purple text */
+            box-shadow: 0 0 0 4px #facc15, 0 0 15px rgba(255, 255, 0, 0.7);
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8 flex items-center justify-center">
@@ -109,13 +107,13 @@
             <!-- Mode and Info Bar -->
             <div class="space-y-4 mb-6 border-b pb-4 border-indigo-100">
                 
-                <!-- Operation/Mode Selector -->
-                <div id="modeSelector" class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <button data-mode="arithmetic" data-op="+" class="btn-mode op-add text-white font-bold py-3 rounded-xl shadow-md">Add/Subtract</button>
-                    <button data-mode="arithmetic" data-op="*" class="btn-mode op-mul text-white font-bold py-3 rounded-xl shadow-md">Multiply/Divide</button>
-                    <button data-mode="place_value" class="btn-mode op-place text-white font-bold py-3 rounded-xl shadow-md">Place Value</button>
-                    <button data-mode="algebra" class="btn-mode bg-gray-400 text-white font-bold py-3 rounded-xl shadow-md" disabled>Algebra/Trig (Soon)</button>
-                    <button data-mode="geometry" class="btn-mode bg-gray-400 text-white font-bold py-3 rounded-xl shadow-md" disabled>Geometry (Soon)</button>
+                <!-- Operation/Mode Selector (Now separate buttons) -->
+                <div id="modeSelector" class="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                    <button data-op="+" data-mode="arithmetic" class="btn-mode op-add text-white font-bold py-3 rounded-xl shadow-md">Addition (+)</button>
+                    <button data-op="-" data-mode="arithmetic" class="btn-mode op-sub text-white font-bold py-3 rounded-xl shadow-md">Subtraction (-)</button>
+                    <button data-op="*" data-mode="arithmetic" class="btn-mode op-mul text-white font-bold py-3 rounded-xl shadow-md">Multiplication (×)</button>
+                    <button data-op="/" data-mode="arithmetic" class="btn-mode op-div text-white font-bold py-3 rounded-xl shadow-md">Division (÷)</button>
+                    <button data-op="place_value" data-mode="place_value" class="btn-mode op-place text-white font-bold py-3 rounded-xl shadow-md">Place Value</button>
                 </div>
 
                 <!-- Score, Level & Reset -->
@@ -142,7 +140,7 @@
                 <!-- Problem and Hint Display -->
                 <div id="problemContainer" class="problem-glow text-center p-6 bg-purple-100 rounded-xl mb-6">
                     <p id="problemText" class="text-3xl sm:text-4xl font-black text-purple-900 mb-2">
-                        Loading problem...
+                        Select an operation to begin!
                     </p>
                     <button id="hintButton" class="bg-yellow-500 hover:bg-yellow-600 text-purple-900 font-bold py-2 px-4 rounded-full text-lg transition duration-150 shadow-md">
                         Need a Hint?
@@ -157,7 +155,7 @@
             
             <!-- Feedback Message -->
             <div id="feedbackContainer" class="mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center">
-                <p id="feedbackMessage" class="text-lg font-semibold text-gray-600">Select an operation mode to begin!</p>
+                <p id="feedbackMessage" class="text-lg font-semibold text-gray-600">Choose your operation above to start learning!</p>
             </div>
         </div>
         
@@ -174,10 +172,8 @@
         let skillLevel = 1; // AI-like adaptive difficulty
         let currentProblem = {};
         let currentMode = 'arithmetic'; 
-        let currentOperation = '+'; 
+        let currentOperation = '+'; // Default to addition
         let hintUsed = false;
-        // Flag to control the initial intentional lag demonstration
-        let initialLagDemoDone = false; 
 
         // Settings
         const MAX_OPERAND_BASE = 5;
@@ -194,22 +190,11 @@
         const feedbackContainer = document.getElementById('feedbackContainer');
         const problemContainer = document.getElementById('problemContainer');
         const visualizationArea = document.getElementById('visualizationArea');
-        const mainContent = document.getElementById('mainContent');
         const hintButton = document.getElementById('hintButton');
+
 
         // --- Utility Functions ---
 
-        /**
-         * Utility function to cause a temporary, noticeable hang (thread-blocking).
-         * Used only for demonstration purposes on the initial load.
-         */
-        function simulateLag(milliseconds) {
-            const start = Date.now();
-            while (Date.now() < start + milliseconds) {
-                // Tight loop blocks the main thread, causing the hang
-            }
-        }
-        
         /**
          * Utility function to shuffle an array (Fisher-Yates)
          */
@@ -256,11 +241,23 @@
             tallies.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner max-w-full';
             tallies.style.color = colorMap[colorName] || colorMap.yellow;
 
-            for (let i = 0; i < count; i++) {
+            // Optimization for rendering many tally marks (keeps performance high)
+            const maxTallies = Math.min(count, 50); // Cap individual tally rendering
+            
+            for (let i = 0; i < maxTallies; i++) {
                 const mark = document.createElement('span');
                 mark.className = `tally-mark ${isCrossed ? 'tally-crossed' : ''}`;
                 tallies.appendChild(mark);
             }
+            
+            // If we capped the tallies, show a note.
+            if (count > maxTallies) {
+                const note = document.createElement('p');
+                note.className = 'text-sm text-indigo-200 w-full mt-2';
+                note.textContent = `... plus ${count - maxTallies} more items.`;
+                tallies.appendChild(note);
+            }
+
             return tallies;
         };
 
@@ -272,14 +269,14 @@
         function renderVisualization() {
             visualizationArea.innerHTML = '';
             visualizationArea.style.display = 'flex';
-            hintButton.style.display = 'block';
+            hintButton.style.display = currentMode === 'place_value' ? 'none' : 'block'; // Hide hint for Place Value (it's the visualization itself)
 
             if (currentMode === 'place_value') {
                 renderPlaceValueVisuals();
                 return;
             }
 
-            // Arithmetic Visuals (Counting, Addition, Subtraction, Multiplication)
+            // Arithmetic Visuals
             const { num1, num2, operation } = currentProblem;
             
             const opSymbol = document.createElement('div');
@@ -306,7 +303,7 @@
                 }
             } else if (operation === '*' || operation === '/') {
                 if (operation === '*') {
-                    // Fix: Check for complexity threshold to avoid lag
+                    // Check for complexity threshold to avoid lag
                     const totalElements = num1 * num2;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
 
@@ -316,8 +313,8 @@
                             <p class="text-white text-3xl font-bold p-4">Multiplication: Area Model Concept</p>
                             <p class="text-indigo-200 text-xl font-medium">
                                 Visualize ${num1} rows of ${num2} items. 
-                                Total size is too large to display all elements (${totalElements}), 
-                                so think of the area of a ${num1} x ${num2} grid.
+                                Total size is too large to display all elements ($N1 \\times N2$), 
+                                so think of the area of a ${num1} $\\times$ ${num2} grid.
                             </p>
                             <div class="bg-yellow-400 text-purple-900 p-2 rounded-lg mt-3 font-mono text-xl">
                                 ${num1} $\\times$ ${num2}
@@ -329,7 +326,7 @@
                         const groupSize = num2; 
 
                         const groupContainer = document.createElement('div');
-                        groupContainer.className = 'flex flex-wrap justify-center items-center p-2 max-w-full';
+                        groupContainer.className = 'flex flex-wrap justify-center items-start p-2 max-w-full';
 
                         for (let i = 0; i < numGroups; i++) {
                             const groupBlock = document.createElement('div');
@@ -337,20 +334,13 @@
                             
                             const label = document.createElement('p');
                             label.className = 'text-base font-bold text-yellow-300 mb-1';
-                            label.textContent = `Group ${i + 1}`;
+                            label.textContent = `Row ${i + 1}`;
                             groupBlock.appendChild(label);
                             
                             const tallies = renderTallies(groupSize, 'lime'); 
                             groupBlock.appendChild(tallies);
 
                             groupContainer.appendChild(groupBlock);
-
-                            if (i < numGroups - 1) {
-                                const plusSignSeparator = document.createElement('div');
-                                plusSignSeparator.className = 'text-3xl text-yellow-400 font-extrabold flex items-center justify-center p-2';
-                                plusSignSeparator.innerHTML = '&#43;'; 
-                                groupContainer.appendChild(plusSignSeparator);
-                            }
                         }
                         visualizationArea.appendChild(groupContainer);
                         visualizationArea.innerHTML += `<p class="text-white text-xl mt-4 font-semibold">This is ${numGroups} groups of ${groupSize}.</p>`;
@@ -371,24 +361,18 @@
             const { num1, num2 } = currentProblem;
             visualizationArea.innerHTML = '';
             visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
-            hintButton.style.display = 'none'; 
+            problemTextElement.textContent = `What is the value of the 'Hundreds' digit in ${num1} ${currentProblem.operation} ${num2}?`;
 
             const renderBlocks = (number, color) => {
-                const numStr = String(number).padStart(3, '0'); 
+                // Determine which digit is needed for the problem based on the answer
+                const numStr = String(currentProblem.answer).padStart(3, '0');
                 const [h, t, o] = numStr.split('').map(Number);
                 
-                const container = document.createElement('div');
-                container.className = 'flex justify-center my-2 text-white font-bold text-lg';
-                container.innerHTML = `
-                    <div class="w-1/3 text-center p-2 rounded-l-lg bg-gray-700/50">Hundreds</div>
-                    <div class="w-1/3 text-center p-2 bg-gray-700/50">Tens</div>
-                    <div class="w-1/3 text-center p-2 rounded-r-lg bg-gray-700/50">Ones</div>
-                `;
-
+                // We show the resulting number's place values
                 const blockContainer = document.createElement('div');
                 blockContainer.className = 'flex justify-center mb-4';
 
-                // Helper to render columns of blocks (optimization not needed here as element count is low)
+                // Helper to render columns of blocks
                 const renderColumn = (count, label, blockColor) => {
                     const col = document.createElement('div');
                     col.className = 'flex flex-col items-center mx-4';
@@ -406,22 +390,16 @@
                 blockContainer.appendChild(renderColumn(t, 'Tens', 'bg-blue-500'));
                 blockContainer.appendChild(renderColumn(o, 'Ones', 'bg-yellow-500'));
                 
-                visualizationArea.appendChild(container);
                 visualizationArea.appendChild(blockContainer);
             };
 
-            renderBlocks(num1, 'blue');
             
-            const opSymbol = document.createElement('div');
-            opSymbol.className = 'text-5xl text-yellow-300 font-extrabold flex items-center justify-center p-4';
-            opSymbol.textContent = currentProblem.operation === '+' ? '+' : '-';
+            visualizationArea.innerHTML += `<p class="text-white text-2xl">First, calculate: ${num1} ${currentProblem.operation} ${num2}</p>`;
+            visualizationArea.innerHTML += `<p class="text-white text-lg mb-4">The result's place value decomposition is shown below:</p>`;
             
-            renderBlocks(num2, 'pink');
+            renderBlocks(currentProblem.answer, 'blue'); // Render blocks based on the final answer
             
-            visualizationArea.appendChild(opSymbol);
-            visualizationArea.innerHTML += `<p class="text-white text-2xl mt-4">Add or Subtract these place value blocks to find the total/difference.</p>`;
-
-            problemTextElement.textContent = `What is ${num1} ${currentProblem.operation} ${num2}?`;
+            visualizationArea.innerHTML += `<p class="text-indigo-200 text-xl mt-4">Which of the options corresponds to the 'Hundreds' block count?</p>`;
         }
 
         // --- Problem Generation ---
@@ -430,13 +408,6 @@
          * Generates a new problem based on current mode, operation, and skill level.
          */
         function generateProblem() {
-            // Intentional Lag Demonstration: This function causes the requested hang ONCE.
-            if (!initialLagDemoDone) {
-                // Hang the main thread for 3 seconds to demonstrate the blocking lag
-                simulateLag(3000); 
-                initialLagDemoDone = true;
-            }
-
             let num1, num2, answer;
             const factor = Math.floor(skillLevel / 2) + 1; 
 
@@ -444,77 +415,95 @@
             const maxAnswer = max * 2; 
 
             if (currentMode === 'place_value') {
-                currentProblem.operation = Math.random() < 0.7 ? '+' : '-'; 
                 const pvMax = 99 * factor; 
                 
-                num1 = Math.floor(Math.random() * pvMax) + 10;
-                num2 = Math.floor(Math.random() * pvMax) + 10;
+                // Place Value problem setup (Max result 999)
+                currentProblem.operation = Math.random() < 0.7 ? '+' : '-'; 
                 
+                // Max initial operands that won't result in more than 3 digits usually
+                num1 = Math.floor(Math.random() * 499) + 10;
+                num2 = Math.floor(Math.random() * 499) + 10;
+
                 if (currentProblem.operation === '-') {
                     if (num1 < num2) [num1, num2] = [num2, num1]; 
                 }
-                // Use a safe calculation method instead of relying solely on eval
-                answer = currentProblem.operation === '+' ? num1 + num2 : num1 - num2;
+                
+                let tempAnswer = currentProblem.operation === '+' ? num1 + num2 : num1 - num2;
+
+                // The *actual* answer for the place value question is the hundreds digit of the result
+                const hundredsDigit = Math.floor(tempAnswer / 100) % 10;
+                answer = hundredsDigit;
+
+                // Store full numbers for the prompt, and the digit as the answer
+                currentProblem.num1 = num1;
+                currentProblem.num2 = num2;
+
+                // Max options range for a digit is 0-9
+                let options = new Set([answer]);
+                while (options.size < 4) { 
+                    const incorrect = Math.floor(Math.random() * 10);
+                    options.add(incorrect);
+                }
+                currentProblem.options = shuffleArray(Array.from(options));
+                currentProblem.answer = answer;
+
 
             } else { 
                 // Arithmetic Mode (+, -, *, /)
-                currentProblem.operation = (skillLevel < 4 && Math.random() < 0.7) ? (Math.random() < 0.5 ? '+' : '-') : (Math.random() < 0.5 ? '*' : '/');
-                
-                if (currentOperation === '+' || currentOperation === '-') {
-                    currentProblem.operation = (currentOperation === '+') ? '+' : '-';
-                }
-                if (currentOperation === '*' || currentOperation === '/') {
-                    currentProblem.operation = (currentOperation === '*') ? '*' : '/';
-                }
+                const operation = currentOperation;
 
-                if (currentProblem.operation === '+') {
+                if (operation === '+') {
                     num1 = Math.floor(Math.random() * max) + 1;
                     num2 = Math.floor(Math.random() * max) + 1;
                     answer = num1 + num2;
-                } else if (currentProblem.operation === '-') {
+                } else if (operation === '-') {
                     num1 = Math.floor(Math.random() * max) + 1;
                     num2 = Math.floor(Math.random() * max) + 1;
                     if (num1 < num2) [num1, num2] = [num2, num1];
                     answer = num1 - num2;
-                } else if (currentProblem.operation === '*') {
+                } else if (operation === '*') {
                     // Keep multiplication factors small at lower levels, but allow for growth
                     const multMax = Math.min(25, 5 + factor * 2); 
                     num1 = Math.floor(Math.random() * multMax) + 1;
                     num2 = Math.floor(Math.random() * multMax) + 1;
                     answer = num1 * num2;
-                } else if (currentProblem.operation === '/') {
+                } else if (operation === '/') {
                     const divisorMax = Math.min(15, 3 + factor * 2);
                     num2 = Math.floor(Math.random() * divisorMax) + 2; 
                     let quotient = Math.floor(Math.random() * (max * 2 / num2)) + 1; 
                     num1 = num2 * quotient; 
                     answer = quotient;
                 }
+                
+                // Generate unique incorrect options for arithmetic
+                let options = new Set([answer]);
+                while (options.size < 4) { 
+                    let incorrect;
+                    if (Math.random() > 0.5) {
+                        incorrect = answer + Math.floor(Math.random() * OPTIONS_RANGE) + 1;
+                    } else {
+                        incorrect = answer - Math.floor(Math.random() * OPTIONS_RANGE) - 1;
+                    }
+                    
+                    if (incorrect >= 0 && incorrect <= maxAnswer + OPTIONS_RANGE) {
+                        options.add(incorrect);
+                    }
+                }
+
+                currentProblem = {
+                    num1,
+                    num2,
+                    operation: currentOperation,
+                    answer,
+                    options: shuffleArray(Array.from(options)),
+                };
             }
             
-            // Generate unique incorrect options
-            let options = new Set([answer]);
-            while (options.size < 4) { 
-                let incorrect;
-                if (Math.random() > 0.5) {
-                    incorrect = answer + Math.floor(Math.random() * OPTIONS_RANGE) + 1;
-                } else {
-                    incorrect = answer - Math.floor(Math.random() * OPTIONS_RANGE) - 1;
-                }
-                
-                if (incorrect >= 0 && incorrect <= maxAnswer + OPTIONS_RANGE) {
-                    options.add(incorrect);
-                }
+            // If it's a place value question, the prompt is set in renderPlaceValueVisuals
+            if (currentMode !== 'place_value') {
+                displayProblem();
             }
-
-            currentProblem = {
-                num1,
-                num2,
-                operation: currentProblem.operation,
-                answer,
-                options: shuffleArray(Array.from(options)),
-            };
-
-            displayProblem();
+            
             renderVisualization(); 
         }
 
@@ -543,7 +532,9 @@
         function showHint() {
             hintUsed = true;
             // Temporarily replace the problem text with the answer
-            const originalText = problemTextElement.textContent;
+            const opSymbol = currentProblem.operation === '*' ? '×' : (currentProblem.operation === '/' ? '÷' : currentProblem.operation);
+            const originalText = `What is ${currentProblem.num1} ${opSymbol} ${currentProblem.num2}?`;
+
             problemTextElement.textContent = `The answer is: ${currentProblem.answer}. Now, can you find it?`;
             
             feedbackMessage.textContent = "Hint used! Your score won't increase as much, but you'll still learn!";
@@ -562,8 +553,9 @@
          */
         function checkAnswer(selectedAnswer) {
             document.querySelectorAll('.btn-option').forEach(btn => btn.disabled = true);
+            const selectedAnswerNum = Number(selectedAnswer);
 
-            if (selectedAnswer === currentProblem.answer) {
+            if (selectedAnswerNum === currentProblem.answer) {
                 // Correct Answer
                 score += hintUsed ? 0 : 1;
                 scoreElement.textContent = Math.floor(score);
@@ -598,28 +590,16 @@
         /**
          * Switches the primary learning mode.
          */
-        function switchMode(newMode, newOperation = '+') {
-            currentMode = newMode;
+        function switchMode(newOperation) {
             currentOperation = newOperation;
+            currentMode = newOperation === 'place_value' ? 'place_value' : 'arithmetic';
             resetGame(false); // Reset score, but keep skill level
 
             // Update button styles
             document.querySelectorAll('.btn-mode').forEach(btn => {
-                btn.classList.remove('ring-4', 'ring-yellow-300', 'bg-yellow-500');
-                if (btn.dataset.mode === 'arithmetic') {
-                    if (btn.dataset.op === currentOperation) {
-                        btn.classList.add('ring-4', 'ring-yellow-300', 'bg-yellow-500', 'text-purple-900');
-                    } else {
-                         // Reset non-active arithmetic buttons to their operation color
-                        btn.classList.remove('bg-yellow-500', 'text-purple-900');
-                        btn.classList.add(btn.dataset.op === '+' ? 'op-add' : 'op-mul', 'text-white');
-                    }
-                } else if (btn.dataset.mode === currentMode) {
-                    btn.classList.add('ring-4', 'ring-yellow-300', 'bg-yellow-500', 'text-purple-900');
-                    btn.classList.remove('op-place');
-                } else if (btn.dataset.mode === 'place_value') {
-                    btn.classList.remove('bg-yellow-500', 'text-purple-900');
-                    btn.classList.add('op-place', 'text-white');
+                btn.classList.remove('active-op');
+                if (btn.dataset.op === currentOperation) {
+                    btn.classList.add('active-op');
                 }
             });
 
@@ -638,7 +618,7 @@
             feedbackMessage.textContent = `Game reset! New challenge loaded.`;
             feedbackContainer.className = 'mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center bg-yellow-100 text-yellow-700';
 
-            // Clear the feedback after a moment
+            // Clear the feedback after a moment and generate a new problem
             setTimeout(() => {
                 feedbackMessage.textContent = "Choose the correct answer!";
                 feedbackContainer.className = 'mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center';
@@ -655,24 +635,14 @@
 
             // Setup mode selector listeners
             document.querySelectorAll('.btn-mode').forEach(btn => {
-                if (!btn.disabled) {
-                    btn.addEventListener('click', () => {
-                        const mode = btn.dataset.mode;
-                        const op = btn.dataset.op || '+';
-                        switchMode(mode, op);
-                    });
-                }
+                btn.addEventListener('click', () => {
+                    const op = btn.dataset.op;
+                    switchMode(op);
+                });
             });
 
-            // Start in the default Addition/Subtraction mode
-            switchMode('arithmetic', '+'); 
-            
-            // Initial styling for the default active button
-            const defaultButton = document.querySelector('[data-mode="arithmetic"][data-op="+"]');
-            if (defaultButton) {
-                defaultButton.classList.add('ring-4', 'ring-yellow-300', 'bg-yellow-500', 'text-purple-900');
-                defaultButton.classList.remove('op-add');
-            }
+            // Start in the default Addition mode
+            switchMode('+'); 
         };
     </script>
 
