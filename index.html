@@ -52,28 +52,61 @@
             flex-wrap: wrap;
             padding: 1rem;
         }
-        /* Style for the tally marks (visual counting/subtraction) */
-        .tally-mark {
+
+        /* --- Simple Symbol Style (for Concrete Phase) --- */
+        .simple-symbol {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
             display: inline-block;
-            width: 8px;
-            height: 35px;
-            background: currentColor;
-            margin: 0 3px;
-            border-radius: 2px;
-            position: relative;
+            margin: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
-        .tally-crossed::after {
+
+        /* --- Base-Ten Block Styles (for Pictorial Phase) --- */
+        /* Unit/One Block (Cube) */
+        .one-block {
+            width: 15px;
+            height: 15px;
+            margin: 2px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        /* Ten Block (Rod) */
+        .ten-block {
+            width: 15px;
+            height: 70px; /* Represents 10 stacked units */
+            margin: 4px 6px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+        }
+        /* Hundred Block (Flat) - Used mainly in Place Value mode */
+        .hundred-block {
+            width: 70px;
+            height: 70px;
+            margin: 4px 6px;
+            border-radius: 6px;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Style for crossed out blocks/symbols (Subtraction/Regrouping) */
+        .block-crossed {
+            position: relative;
+            opacity: 0.4;
+        }
+        .block-crossed::after {
             content: '';
             position: absolute;
             top: 50%;
-            left: -5px;
-            right: -5px;
-            height: 4px;
-            background: red;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #dc2626; /* Red line */
             transform: translateY(-50%) rotate(-45deg);
-            opacity: 0.8;
-            border-radius: 2px;
+            opacity: 1;
+            border-radius: 1px;
         }
+
         /* High contrast colors for operations */
         .op-add { background-color: #059669; } /* Emerald */
         .op-sub { background-color: #dc2626; } /* Red */
@@ -85,24 +118,6 @@
             background-color: #facc15 !important; /* Yellow */
             color: #4c1d95 !important; /* Purple text */
             box-shadow: 0 0 0 4px #facc15, 0 0 15px rgba(255, 255, 0, 0.7);
-        }
-        /* Custom style for the crossed out ten block */
-        .ten-block-crossed {
-            position: relative;
-            overflow: hidden;
-            background-color: #9ca3af; /* Gray for crossed out */
-        }
-        .ten-block-crossed::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: red;
-            transform: translateY(-50%) rotate(-45deg);
-            opacity: 0.8;
-            border-radius: 2px;
         }
     </style>
 </head>
@@ -196,8 +211,10 @@
         // Settings
         const MAX_OPERAND_BASE = 5;
         const OPTIONS_RANGE = 5;
-        // Threshold for switching visualization complexity (e.g., total elements > 50)
         const VISUAL_COMPLEXITY_THRESHOLD = 50; 
+        // Start using Base-Ten Blocks (Pictorial) at Skill Level 3. Below is Simple Symbols (Concrete).
+        const BASE_TEN_THRESHOLD = 3; 
+        const SIMPLE_SYMBOL_MAX_COUNT = 10; // Max count for which we use the simple 1:1 symbol visualization
 
         // DOM elements
         const scoreElement = document.getElementById('score');
@@ -241,77 +258,109 @@
         }
         
         /**
-         * Renders the tally marks, adapting to Base-Ten grouping at higher skill levels.
-         * @param {number} count - The number of tallies to render.
-         * @param {string} colorName - The color for the tallies (e.g., 'yellow', 'pink', 'lime').
-         * @param {boolean} [isCrossed=false] - If true, apply the cross-out style (for subtraction).
-         * @returns {HTMLElement} The tally container element.
+         * Renders simple 1:1 symbols (dots/beads) for low skill/small numbers (Concrete phase).
+         * @param {number} totalCount - The total number of units in the group.
+         * @param {number} countToCrossOut - The number of symbols to cross out (0 for addition).
+         * @param {string} colorClass - The Tailwind color class for the blocks.
+         * @returns {HTMLElement} The container element with symbols.
          */
-        const renderTallies = (count, colorName, isCrossed = false) => {
-            const colorMap = {
-                'yellow': '#facc15', // Tailwind yellow-400
-                'pink': '#f472b6',   // Tailwind pink-400
-                'lime': '#a3e635',   // Tailwind lime-400
-                'red': '#ef4444'     // Tailwind red-500
-            };
+        const renderSimpleSymbols = (totalCount, countToCrossOut, colorClass) => {
+            const container = document.createElement('div');
+            container.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner max-w-full';
 
-            const tallies = document.createElement('div');
-            tallies.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner max-w-full';
-            tallies.style.color = colorMap[colorName] || colorMap.yellow;
+            const maxUnits = Math.min(totalCount, VISUAL_COMPLEXITY_THRESHOLD); 
+            
+            for (let i = 0; i < maxUnits; i++) {
+                const symbol = document.createElement('span');
+                // Apply cross-out if we still need to mark items to be taken away
+                const isCrossed = i < countToCrossOut; 
 
-            // Use Base-Ten Grouping for counts > 10 and if skill level is slightly higher (CPA - Pictorial)
-            const useBaseTen = count > 10 && skillLevel >= 3;
+                symbol.className = `simple-symbol ${colorClass} ${isCrossed ? 'block-crossed' : ''}`;
+                container.appendChild(symbol);
+            }
+            
+            if (totalCount > maxUnits) {
+                const note = document.createElement('p');
+                note.className = 'text-sm text-indigo-200 w-full mt-2';
+                note.textContent = `... plus ${totalCount - maxUnits} more symbols.`;
+                container.appendChild(note);
+            }
+            
+            const note = document.createElement('p');
+            note.className = 'text-sm text-indigo-200 w-full mt-2';
+            note.textContent = `(Concrete Counting: ${totalCount} units. ${countToCrossOut > 0 ? `Take Away: ${countToCrossOut}` : ''})`;
+            container.appendChild(note);
 
-            if (useBaseTen) {
-                const tens = Math.floor(count / 10);
-                const ones = count % 10;
+            return container;
+        };
+
+
+        /**
+         * Renders Base-Ten Elements (Ones Units and Tens Rods) for arithmetic (Pictorial phase).
+         * @param {number} totalCount - The total number of units in the group.
+         * @param {number} countToCrossOut - The number of symbols to cross out (0 for addition).
+         * @param {string} colorClass - The Tailwind color class for the blocks.
+         * @returns {HTMLElement} The container element with blocks.
+         */
+        const renderBaseTenElements = (totalCount, countToCrossOut, colorClass) => {
+            const container = document.createElement('div');
+            container.className = 'flex flex-wrap justify-center m-2 p-2 rounded-lg bg-white/10 shadow-inner max-w-full';
+
+            const tens = Math.floor(totalCount / 10);
+            const ones = totalCount % 10;
+            let remainingToCross = countToCrossOut;
+            
+            // Render 10s Blocks (Rods)
+            for (let i = 0; i < tens; i++) {
+                const block = document.createElement('div');
+                // Cross out the required number of tens rods (visual approximation of regrouping)
+                const isCrossed = remainingToCross >= 10; 
+                if (isCrossed) {
+                    remainingToCross -= 10;
+                }
                 
-                // Render 10s Blocks (Rectangles)
-                for (let i = 0; i < tens; i++) {
-                    const block = document.createElement('div');
-                    const colorClass = isCrossed ? 'ten-block-crossed' : `bg-current text-white`;
-                    // Stylized 'Ten' block
-                    block.className = `w-8 h-8 ${colorClass} m-1 rounded shadow-md flex items-center justify-center text-xs font-bold`;
-                    block.innerHTML = `<span class="z-10">${isCrossed ? '' : '10'}</span>`; // Text is removed if crossed out for clarity
-                    tallies.appendChild(block);
-                }
-
-                // Render 1s Tallies (small marks)
-                for (let i = 0; i < ones; i++) {
-                    const mark = document.createElement('span');
-                    mark.className = `tally-mark ${isCrossed ? 'tally-crossed' : ''}`;
-                    tallies.appendChild(mark);
-                }
-
-                if (count > 0) {
-                    const note = document.createElement('p');
-                    note.className = 'text-sm text-indigo-200 w-full mt-2';
-                    note.textContent = `(Base-Ten Concept: ${tens} Tens and ${ones} Ones)`;
-                    tallies.appendChild(note);
-                }
-
-
-            } else {
-                // Simple Tally marks for smaller numbers/lower skill (CPA - Concrete/1:1)
-                const maxTallies = Math.min(count, VISUAL_COMPLEXITY_THRESHOLD); 
-                
-                for (let i = 0; i < maxTallies; i++) {
-                    const mark = document.createElement('span');
-                    mark.className = `tally-mark ${isCrossed ? 'tally-crossed' : ''}`;
-                    tallies.appendChild(mark);
-                }
-                
-                // If we capped the tallies, show a note.
-                if (count > maxTallies) {
-                    const note = document.createElement('p');
-                    note.className = 'text-sm text-indigo-200 w-full mt-2';
-                    note.textContent = `... plus ${count - maxTallies} more items.`;
-                    tallies.appendChild(note);
-                }
+                block.className = `ten-block ${colorClass} ${isCrossed ? 'block-crossed' : ''}`;
+                container.appendChild(block);
             }
 
+            // Render 1s Units (Cubes)
+            const onesContainer = document.createElement('div');
+            onesContainer.className = 'flex flex-wrap max-w-[120px] mx-2'; // Group the ones units
+            for (let i = 0; i < ones; i++) {
+                const mark = document.createElement('span');
+                // Cross out the required number of ones units
+                const isCrossed = remainingToCross > 0;
+                if (isCrossed) {
+                    remainingToCross--;
+                }
 
-            return tallies;
+                mark.className = `one-block ${colorClass} ${isCrossed ? 'block-crossed' : ''}`;
+                onesContainer.appendChild(mark);
+            }
+            container.appendChild(onesContainer);
+
+            if (totalCount > 0) {
+                const note = document.createElement('p');
+                note.className = 'text-sm text-indigo-200 w-full mt-2';
+                note.textContent = `(Pictorial Place Value: ${tens} Tens Rods and ${ones} Ones Units. ${countToCrossOut > 0 ? `Take Away: ${countToCrossOut}` : ''})`;
+                container.appendChild(note);
+            }
+
+            return container;
+        };
+
+        /**
+         * Decides which visual rendering method to use based on skill level and number size.
+         */
+        const renderMathVisuals = (count, countToCrossOut, colorClass) => {
+             // 1. Simple Symbols (Concrete) for small numbers and low skill levels
+            if (skillLevel < BASE_TEN_THRESHOLD || count <= SIMPLE_SYMBOL_MAX_COUNT) {
+                return renderSimpleSymbols(count, countToCrossOut, colorClass);
+            } 
+            // 2. Base-Ten Blocks (Pictorial) for larger numbers and higher skill levels
+            else {
+                return renderBaseTenElements(count, countToCrossOut, colorClass);
+            }
         };
 
 
@@ -323,7 +372,7 @@
         function renderVisualization() {
             visualizationArea.innerHTML = '';
             visualizationArea.style.display = 'flex';
-            hintButton.style.display = currentMode === 'place_value' ? 'none' : 'block'; // Hide hint for Place Value (it's the visualization itself)
+            hintButton.style.display = currentMode === 'place_value' ? 'none' : 'block';
 
             if (currentMode === 'place_value') {
                 renderPlaceValueVisuals();
@@ -337,45 +386,52 @@
             opSymbol.className = 'text-5xl text-yellow-300 font-extrabold flex items-center justify-center p-4';
             opSymbol.textContent = operation === '*' ? '×' : (operation === '/' ? '÷' : operation);
 
-            if (operation === '+' || operation === '-') {
-                // Visual for Addition (Counting) or Subtraction (Crossing out)
-                visualizationArea.className = 'visual-container flex-row items-center bg-purple-900/90 rounded-xl mb-4 text-center';
+            if (operation === '+') {
+                // Addition: Two distinct groups being combined
+                visualizationArea.className = 'visual-container flex-row items-start bg-purple-900/90 rounded-xl mb-4 text-center';
                 
-                // Group 1: Yellow Tallies (Always present)
-                const group1 = renderTallies(num1, 'yellow');
+                // Group 1: Yellow Symbols/Blocks
+                const group1 = renderMathVisuals(num1, 0, 'bg-yellow-400');
                 visualizationArea.appendChild(group1);
                 visualizationArea.appendChild(opSymbol);
 
-                if (operation === '+') {
-                    // Group 2: Pink Tallies for Addition
-                    const group2 = renderTallies(num2, 'pink');
-                    visualizationArea.appendChild(group2);
-                } else if (operation === '-') {
-                    // Group 2: Red Tallies for Subtraction (crossing out the amount being subtracted)
-                    const group2 = renderTallies(num2, 'red', true); // Cross out the subtracted amount
-                    visualizationArea.appendChild(group2);
-                }
+                // Group 2: Pink Symbols/Blocks for Addition
+                const group2 = renderMathVisuals(num2, 0, 'bg-pink-400');
+                visualizationArea.appendChild(group2);
+
+            } else if (operation === '-') {
+                // Subtraction: One starting group (num1) with num2 items crossed out
+                visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
+                
+                const heading = document.createElement('p');
+                heading.className = 'text-white text-xl font-semibold mb-2';
+                heading.textContent = `Start with ${num1}. Cross out ${num2} units to find the answer.`;
+                visualizationArea.appendChild(heading);
+
+                // Single Group: Yellow Symbols/Blocks with num2 marked as crossed out
+                const singleGroup = renderMathVisuals(num1, num2, 'bg-yellow-400');
+                visualizationArea.appendChild(singleGroup);
+
             } else if (operation === '*' || operation === '/') {
                 if (operation === '*') {
-                    // Check for complexity threshold to avoid lag
+                    // Multiplication: Array/Area Model (Equal Groups)
                     const totalElements = num1 * num2;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
 
                     if (totalElements > VISUAL_COMPLEXITY_THRESHOLD) {
-                        // High-performance text/area model representation for large numbers (CPA - Abstract/Pictorial Area)
+                        // High-performance text/area model representation for large numbers
                         visualizationArea.innerHTML = `
-                            <p class="text-white text-3xl font-bold p-4">Multiplication: Array/Area Model Concept</p>
+                            <p class="text-white text-3xl font-bold p-4">Multiplication: Array/Area Model</p>
                             <p class="text-indigo-200 text-xl font-medium">
-                                Visualize ${num1} rows of ${num2} items. 
-                                Total size is too large to display all elements ($${num1} \\times ${num2}$), 
-                                so think of the area of a $${num1} \\times ${num2}$ grid.
+                                Think of an array with ${num1} rows and ${num2} columns. 
+                                Total size is too large to display all units ($${num1} \\times ${num2}$).
                             </p>
                             <div class="bg-yellow-400 text-purple-900 p-2 rounded-lg mt-3 font-mono text-xl">
                                 ${num1} $\\times$ ${num2}
                             </div>
                         `;
                     } else {
-                        // Original (now safe) visual for smaller numbers (CPA - Pictorial Equal Groups)
+                        // Small visual for smaller numbers
                         const numGroups = num1; 
                         const groupSize = num2; 
 
@@ -388,28 +444,29 @@
                             
                             const label = document.createElement('p');
                             label.className = 'text-base font-bold text-yellow-300 mb-1';
-                            label.textContent = `Group ${i + 1}`;
+                            label.textContent = `Group ${i + 1} (${groupSize})`;
                             groupBlock.appendChild(label);
                             
-                            const tallies = renderTallies(groupSize, 'lime'); 
-                            groupBlock.appendChild(tallies);
+                            // Use simple units (dots) for multiplication visualization
+                            const units = renderSimpleSymbols(groupSize, 0, 'bg-lime-400'); 
+                            groupBlock.appendChild(units);
 
                             groupContainer.appendChild(groupBlock);
                         }
                         visualizationArea.appendChild(groupContainer);
-                        visualizationArea.innerHTML += `<p class="text-white text-xl mt-4 font-semibold">This is ${numGroups} groups of ${groupSize}.</p>`;
+                        visualizationArea.innerHTML += `<p class="text-white text-xl mt-4 font-semibold">This is ${numGroups} equal groups of ${groupSize}.</p>`;
                     }
 
                 } else if (operation === '/') {
-                    // Visual for Division - Keep a high-level explanation (CPA - Pictorial Sharing/Grouping)
-                    visualizationArea.innerHTML = `<p class="text-white text-2xl font-bold p-4">Division: Equal Sharing or Grouping</p><p class="text-indigo-200">Start with the total (${num1}). How many times can you make a group of size ${num2}?</p>`;
+                    // Division: High-level explanation (Equal Sharing or Grouping)
+                    visualizationArea.innerHTML = `<p class="text-white text-2xl font-bold p-4">Division: Equal Sharing or Grouping</p><p class="text-indigo-200">Start with the total (${num1}). How many times can you make a group of size ${num2}? The answer is the number of groups.</p>`;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
                 }
             }
         }
 
         /**
-         * Renders the Place Value visualization (Base-Ten Blocks).
+         * Renders the Place Value visualization (Hundreds, Tens, Ones).
          */
         function renderPlaceValueVisuals() {
             const { num1, num2 } = currentProblem;
@@ -418,43 +475,53 @@
             
             // Function to render the decomposition into blocks
             const renderBlocks = (number) => {
+                // Ensure the number is treated as a three-digit number for visualization
                 const numStr = String(number).padStart(3, '0');
                 const [h, t, o] = numStr.split('').map(Number);
                 
-                // We show the resulting number's place values
                 const blockContainer = document.createElement('div');
                 blockContainer.className = 'flex justify-center mb-4 flex-wrap';
 
                 // Helper to render columns of blocks
-                const renderColumn = (count, label, blockColor) => {
+                const renderColumn = (count, label, blockType, blockColor) => {
                     const col = document.createElement('div');
                     col.className = 'flex flex-col items-center mx-4 my-2 p-3 bg-white/10 rounded-lg shadow-inner';
                     col.innerHTML = `<p class="text-lg font-bold text-yellow-300 mb-1">${label}</p>`;
                     
-                    // Render large blocks/rods
-                    const blockTypeClass = label.includes('Hundreds') ? 'w-12 h-12' : (label.includes('Tens') ? 'w-6 h-12' : 'w-6 h-6');
-
-                    for (let i = 0; i < count; i++) {
-                        const block = document.createElement('div');
-                        block.className = `${blockTypeClass} ${blockColor} m-1 rounded shadow-lg`;
-                        col.appendChild(block);
+                    if (blockType !== 'one-block') {
+                         for (let i = 0; i < count; i++) {
+                            const block = document.createElement('div');
+                            block.className = `${blockType} ${blockColor} m-1 rounded shadow-lg`;
+                            col.appendChild(block);
+                        }
+                    } else {
+                        // Group the ones units for better visual organization
+                        const onesContainer = document.createElement('div');
+                        onesContainer.className = 'flex flex-wrap max-w-[100px] justify-center';
+                        for(let i=0; i < count; i++) {
+                            const unit = document.createElement('div');
+                            unit.className = 'one-block bg-yellow-500';
+                            onesContainer.appendChild(unit);
+                        }
+                        col.appendChild(onesContainer);
                     }
+
                     // Show the digit count at the bottom
                     col.innerHTML += `<p class="text-white font-extrabold text-2xl mt-2">${count}</p>`;
                     return col;
                 };
 
-                // H is Hundreds (Violet), T is Tens (Blue), O is Ones (Yellow)
-                blockContainer.appendChild(renderColumn(h, 'Hundreds (100s)', 'bg-violet-500'));
-                blockContainer.appendChild(renderColumn(t, 'Tens (10s)', 'bg-blue-500'));
-                blockContainer.appendChild(renderColumn(o, 'Ones (1s)', 'bg-yellow-500'));
+                // Use standard Base-Ten Block colors: Hundreds (Violet), Tens (Blue), Ones (Yellow)
+                blockContainer.appendChild(renderColumn(h, 'Hundreds (Flats)', 'hundred-block', 'bg-violet-500'));
+                blockContainer.appendChild(renderColumn(t, 'Tens (Rods)', 'ten-block', 'bg-blue-500'));
+                blockContainer.appendChild(renderColumn(o, 'Ones (Units)', 'one-block', 'bg-yellow-500')); // Uses inner logic above
                 
                 visualizationArea.appendChild(blockContainer);
             };
 
             
             visualizationArea.innerHTML += `<p class="text-white text-2xl">First, calculate: ${num1} ${currentProblem.operation} ${num2}</p>`;
-            visualizationArea.innerHTML += `<p class="text-white text-lg mb-4">The **result** is ${currentProblem.fullAnswer}. Its Base-Ten decomposition is shown below:</p>`;
+            visualizationArea.innerHTML += `<p class="text-white text-lg mb-4">The **result** is ${currentProblem.fullAnswer}. Its Base-Ten decomposition (Pictorial) is shown below:</p>`;
             
             // Pass the full answer to renderBlocks
             renderBlocks(currentProblem.fullAnswer); 
@@ -462,7 +529,7 @@
             // Set the final question in the problem box
             problemTextElement.textContent = `Given the result is ${currentProblem.fullAnswer}, what is the value of the **Hundreds** digit?`; 
             
-            visualizationArea.innerHTML += `<p class="text-indigo-200 text-xl mt-4">Which option corresponds to the count of the 'Hundreds' blocks (Violet)?</p>`;
+            visualizationArea.innerHTML += `<p class="text-indigo-200 text-xl mt-4">Which option corresponds to the count of the 'Hundreds' blocks (Violet Flats)?</p>`;
         }
 
         // --- Problem Generation ---
@@ -550,7 +617,7 @@
                         incorrect = answer - Math.floor(Math.random() * OPTIONS_RANGE) - 1;
                     }
                     
-                    if (incorrect >= 0 && incorrect <= maxAnswer + OPTIONS_RANGE) {
+                    if (incorrect >= 0 && incorrect >= 0) { // Keep options non-negative
                         options.add(incorrect);
                     }
                 }
