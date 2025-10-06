@@ -119,6 +119,11 @@
             color: #4c1d95 !important; /* Purple text */
             box-shadow: 0 0 0 4px #facc15, 0 0 15px rgba(255, 255, 0, 0.7);
         }
+        
+        /* Custom Tailwind Switch */
+        .toggle-switch-container input:checked ~ .toggle-bg {
+            background-color: #8b5cf6; /* Violet-500 */
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8 flex items-center justify-center">
@@ -149,8 +154,21 @@
                     <button data-op="place_value" data-mode="place_value" class="btn-mode op-place text-white font-bold py-3 rounded-xl shadow-md">Place Value</button>
                 </div>
 
+                <!-- Toggle for Regrouping/Borrowing -->
+                <div class="flex justify-between items-center bg-purple-100 p-3 rounded-lg shadow-inner" id="regroupingToggleContainer">
+                    <span class="text-lg font-bold text-purple-900">Show Regrouping/Borrowing Steps (Advanced Subtraction)</span>
+                    
+                    <label for="regroupingToggle" class="flex items-center cursor-pointer toggle-switch-container">
+                        <div class="relative">
+                            <input type="checkbox" id="regroupingToggle" class="sr-only">
+                            <div class="block bg-gray-600 w-14 h-8 rounded-full toggle-bg transition-colors duration-300"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition shadow-md"></div>
+                        </div>
+                    </label>
+                </div>
+
                 <!-- Score, Level & Reset -->
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-center pt-2">
                     <div class="text-lg font-bold text-gray-700">
                         Score: <span id="score" class="text-green-600">0</span>
                     </div>
@@ -207,6 +225,7 @@
         let currentMode = 'arithmetic'; 
         let currentOperation = '+'; // Default to addition
         let hintUsed = false;
+        let showRegrouping = true; // Defaulted to TRUE to enable borrowing visuals
 
         // Settings
         const MAX_OPERAND_BASE = 5;
@@ -226,6 +245,8 @@
         const problemContainer = document.getElementById('problemContainer');
         const visualizationArea = document.getElementById('visualizationArea');
         const hintButton = document.getElementById('hintButton');
+        const regroupingToggle = document.getElementById('regroupingToggle');
+        const regroupingToggleContainer = document.getElementById('regroupingToggleContainer');
 
 
         // --- Utility Functions ---
@@ -373,6 +394,7 @@
             visualizationArea.innerHTML = '';
             visualizationArea.style.display = 'flex';
             hintButton.style.display = currentMode === 'place_value' ? 'none' : 'block';
+            regroupingToggleContainer.style.display = currentOperation === '-' ? 'flex' : 'none'; // Only show toggle for subtraction
 
             if (currentMode === 'place_value') {
                 renderPlaceValueVisuals();
@@ -380,7 +402,7 @@
             }
 
             // Arithmetic Visuals
-            const { num1, num2, operation } = currentProblem;
+            const { num1, num2, operation, requiresBorrowing, requiresCarry } = currentProblem;
             
             const opSymbol = document.createElement('div');
             opSymbol.className = 'text-5xl text-yellow-300 font-extrabold flex items-center justify-center p-4';
@@ -398,19 +420,94 @@
                 // Group 2: Pink Symbols/Blocks for Addition
                 const group2 = renderMathVisuals(num2, 0, 'bg-pink-400');
                 visualizationArea.appendChild(group2);
+                
+                // Add a simple note for carrying/regrouping in addition for clarity
+                if (requiresCarry && skillLevel >= BASE_TEN_THRESHOLD) {
+                     const carryNote = document.createElement('p');
+                     carryNote.className = 'text-white text-xl font-semibold w-full mt-4 p-3 bg-green-700/30 rounded-lg shadow-xl';
+                     // Updated note: Removed LaTeX from 'num1 * num2' and used plain text/unicode for symbols
+                     carryNote.textContent = `Combine all blocks! Notice how the ones total more than 9? Remember to **CARRY** (Regroup 10 ones into 1 ten) to find the answer: ${currentProblem.answer}`;
+                     visualizationArea.appendChild(carryNote);
+                }
 
             } else if (operation === '-') {
                 // Subtraction: One starting group (num1) with num2 items crossed out
                 visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
                 
-                const heading = document.createElement('p');
-                heading.className = 'text-white text-xl font-semibold mb-2';
-                heading.textContent = `Start with ${num1}. Cross out ${num2} units to find the answer.`;
-                visualizationArea.appendChild(heading);
+                // Check if we need to show the explicit borrowing step (at high skill/base-ten mode)
+                // This is now conditional on the 'showRegrouping' state
+                if (requiresBorrowing && skillLevel >= BASE_TEN_THRESHOLD && showRegrouping) {
+                    
+                    const initialTens = Math.floor(num1 / 10);
+                    const initialOnes = num1 % 10;
+                    const newTens = initialTens - 1;
+                    const newOnes = initialOnes + 10;
 
-                // Single Group: Yellow Symbols/Blocks with num2 marked as crossed out
-                const singleGroup = renderMathVisuals(num1, num2, 'bg-yellow-400');
-                visualizationArea.appendChild(singleGroup);
+                    // 1. Describe the problem
+                    const intro = document.createElement('p');
+                    intro.className = 'text-white text-xl font-semibold mb-4';
+                    intro.textContent = `Start with ${num1} (${initialTens} Tens and ${initialOnes} Ones). We need to take away ${num2}. Since ${initialOnes} < ${num2 % 10}, we must **BREAK ONE TEN ROD INTO 10 ONES** (Regrouping/Borrowing).`;
+                    visualizationArea.appendChild(intro);
+
+                    // --- Visual 1: The Regrouping Step (Showing before and after values) ---
+                    const regroupVisual = document.createElement('div');
+                    regroupVisual.className = 'flex flex-col sm:flex-row justify-center items-center p-4 rounded-xl bg-purple-700/50 border-2 border-yellow-300/70 mb-4 w-full';
+                    
+                    // Box 1: Before Regrouping
+                    const beforeBox = document.createElement('div');
+                    beforeBox.className = 'p-3 m-2 border-r-2 sm:border-r-4 border-dashed border-white/50';
+                    beforeBox.innerHTML = `
+                        <p class="text-yellow-300 font-bold text-lg mb-1">Before Regrouping:</p>
+                        <p class="text-white text-2xl font-extrabold">${initialTens} Tens | ${initialOnes} Ones</p>
+                    `;
+                    regroupVisual.appendChild(beforeBox);
+
+                    // Arrow Icon (Right arrow for desktop, Down arrow for mobile)
+                    regroupVisual.innerHTML += `<span class="text-white text-3xl font-bold px-4 hidden sm:block"> → </span>`;
+                    regroupVisual.innerHTML += `<span class="text-white text-3xl font-bold py-2 sm:hidden"> ↓ </span>`;
+
+                    // Box 2: After Regrouping
+                    const afterBox = document.createElement('div');
+                    afterBox.className = 'p-3 m-2';
+                    afterBox.innerHTML = `
+                        <p class="text-green-300 font-bold text-lg mb-1">After Regrouping:</p>
+                        <p class="text-white text-2xl font-extrabold text-red-400">${newTens} Tens | ${newOnes} Ones</p>
+                    `;
+                    regroupVisual.appendChild(afterBox);
+                    
+                    visualizationArea.appendChild(regroupVisual);
+                    
+                    // 2. The Final Subtraction (Cross-Out Step)
+                    const finalStepNote = document.createElement('p');
+                    finalStepNote.className = 'text-white text-xl font-semibold mb-2 mt-4';
+                    // UPDATED TEXT: Prompts the user to find the answer by counting the remaining blocks
+                    finalStepNote.textContent = `Now, based on the regrouped amounts, cross out ${num2} units. The blocks that remain are your final answer!`; 
+                    visualizationArea.appendChild(finalStepNote);
+                    
+                    // Single Group showing starting blocks (num1) with crossed out blocks (num2)
+                    const finalGroup = renderMathVisuals(num1, num2, 'bg-yellow-400');
+                    visualizationArea.appendChild(finalGroup);
+                    
+                    // The section for displaying the final result blocks has been removed per request.
+                    
+                } else {
+                    // Simple Subtraction (No Regrouping visual shown)
+                    const heading = document.createElement('p');
+                    heading.className = 'text-white text-xl font-semibold mb-2';
+                    heading.textContent = `Start with ${num1}. Cross out ${num2} units to find the answer.`;
+                    
+                    // Add a note if regrouping was required but is hidden
+                    if (requiresBorrowing && skillLevel >= BASE_TEN_THRESHOLD && !showRegrouping) {
+                        heading.textContent += " (Hint: This problem requires borrowing/regrouping if you were doing it traditionally!)";
+                        heading.className = 'text-white text-xl font-semibold mb-2 p-2 bg-red-800/50 rounded';
+                    }
+                    
+                    visualizationArea.appendChild(heading);
+
+                    // Single Group: Yellow Symbols/Blocks with num2 marked as crossed out
+                    const singleGroup = renderMathVisuals(num1, num2, 'bg-yellow-400');
+                    visualizationArea.appendChild(singleGroup);
+                }
 
             } else if (operation === '*' || operation === '/') {
                 if (operation === '*') {
@@ -424,10 +521,10 @@
                             <p class="text-white text-3xl font-bold p-4">Multiplication: Array/Area Model</p>
                             <p class="text-indigo-200 text-xl font-medium">
                                 Think of an array with ${num1} rows and ${num2} columns. 
-                                Total size is too large to display all units ($${num1} \\times ${num2}$).
+                                Total size is too large to display all units (${num1} × ${num2}).
                             </p>
                             <div class="bg-yellow-400 text-purple-900 p-2 rounded-lg mt-3 font-mono text-xl">
-                                ${num1} $\\times$ ${num2}
+                                ${num1} × ${num2}
                             </div>
                         `;
                     } else {
@@ -459,7 +556,7 @@
 
                 } else if (operation === '/') {
                     // Division: High-level explanation (Equal Sharing or Grouping)
-                    visualizationArea.innerHTML = `<p class="text-white text-2xl font-bold p-4">Division: Equal Sharing or Grouping</p><p class="text-indigo-200">Start with the total (${num1}). How many times can you make a group of size ${num2}? The answer is the number of groups.</p>`;
+                    visualizationArea.innerHTML = `<p class="text-white text-2xl font-bold p-4">Division: Equal Sharing or Grouping</p><p class="text-indigo-200">Start with the total (${num1}). How many times can you make a group of size ${num2}? The answer is the number of groups.</p> delightful and engaging!`;
                     visualizationArea.className = 'visual-container flex-col items-center bg-purple-900/90 rounded-xl mb-4 text-center';
                 }
             }
@@ -570,7 +667,10 @@
             const factor = Math.floor(skillLevel / 2) + 1; 
 
             const max = MAX_OPERAND_BASE + (factor * 5); 
-            const maxAnswer = max * 2; 
+
+            // Reset specific flags
+            currentProblem.requiresBorrowing = false;
+            currentProblem.requiresCarry = false;
 
             if (currentMode === 'place_value') {
                 
@@ -623,14 +723,13 @@
                     options: []
                 };
 
-                // Generate options: The target digit, the target digit's value, and two incorrect values
+                // Generate unique incorrect options
                 let options = new Set([answer]);
-                
                 // Add the target digit itself (a very common mistake in place value)
-                options.add(targetDigit); 
-                
+                options.add(targetDigit);
+
                 // Add incorrect options: based on nearby values or incorrect place value (e.g., 700 instead of 70)
-                while (options.size < 4) { 
+                while (options.size < 4) {
                     let incorrect = 0;
 
                     if (Math.random() < 0.5) {
@@ -643,10 +742,13 @@
                             incorrect = targetDigit * 10;
                         }
                     } else {
-                        // Incorrect: Off by a small amount from the correct answer
-                        incorrect = answer + (Math.floor(Math.random() * 2) * placeValue);
+                        // FIX: Off by a small amount from the correct answer
+                        // Guarantee a non-zero, randomly signed offset by adding 1 to the random factor.
+                        let offsetFactor = Math.floor(Math.random() * OPTIONS_RANGE) + 1; // 1 to 5
+                        let sign = Math.random() < 0.5 ? 1 : -1;
+                        incorrect = answer + (offsetFactor * placeValue * sign);
                     }
-                    
+
                     if (incorrect >= 0 && incorrect !== answer && incorrect <= 1000) {
                         options.add(incorrect);
                     }
@@ -655,18 +757,52 @@
 
 
             } else { 
-                // --- ARITHMETIC MODE (Original Logic) ---
+                // --- ARITHMETIC MODE ---
                 const operation = currentOperation;
 
                 if (operation === '+') {
                     num1 = Math.floor(Math.random() * max) + 1;
                     num2 = Math.floor(Math.random() * max) + 1;
                     answer = num1 + num2;
+
+                    // Set flag for addition regrouping (carrying) if skill level is high enough
+                    if (skillLevel >= BASE_TEN_THRESHOLD && num1 % 10 + num2 % 10 >= 10 && num1 >= 10 && num2 >= 10) {
+                        currentProblem.requiresCarry = true;
+                    }
+                    
                 } else if (operation === '-') {
-                    num1 = Math.floor(Math.random() * max) + 1;
-                    num2 = Math.floor(Math.random() * max) + 1;
+                    
+                    let isBorrowingProblem = false;
+
+                    // If skill is high enough, intentionally generate a borrowing problem 
+                    // (50% of the time)
+                    if (skillLevel >= BASE_TEN_THRESHOLD && Math.random() < 0.5) {
+                        const maxTens = Math.min(9, Math.floor(max / 10));
+                        let num1_tens = Math.floor(Math.random() * (maxTens - 2)) + 2; // e.g., 2 to 9
+                        let num1_ones = Math.floor(Math.random() * 5); // e.g., 0 to 4 (The small number)
+
+                        let num2_tens = Math.floor(Math.random() * (num1_tens - 1)) + 1; // Must be smaller than num1_tens
+                        let num2_ones = Math.floor(Math.random() * (9 - num1_ones)) + (num1_ones + 1); // Must be larger than num1_ones
+
+                        num1 = num1_tens * 10 + num1_ones; // e.g., 32
+                        num2 = num2_tens * 10 + num2_ones; // e.g., 17
+                        isBorrowingProblem = true;
+                        
+                    } else {
+                         // Simple non-regrouping subtraction (old logic or intentional non-borrowing problem)
+                        num1 = Math.floor(Math.random() * max) + 1;
+                        num2 = Math.floor(Math.random() * max) + 1;
+                        if (num1 < num2) [num1, num2] = [num2, num1]; // Ensure num1 >= num2
+                        
+                        // If it's still a borrowing problem randomly, flag it
+                        isBorrowingProblem = (num1 % 10 < num2 % 10) && (num1 >= 10);
+                    }
+
+                    // Final check to ensure num1 >= num2 and calculate answer
                     if (num1 < num2) [num1, num2] = [num2, num1];
                     answer = num1 - num2;
+                    currentProblem.requiresBorrowing = isBorrowingProblem;
+
                 } else if (operation === '*') {
                     // Keep multiplication factors small at lower levels, but allow for growth
                     const multMax = Math.min(25, 5 + factor * 2); 
@@ -697,6 +833,7 @@
                 }
 
                 currentProblem = {
+                    ...currentProblem, // Keep requiresBorrowing/requiresCarry flags
                     num1,
                     num2,
                     operation: currentOperation,
@@ -731,7 +868,7 @@
             currentProblem.options.forEach(option => {
                 const button = document.createElement('button');
                 button.textContent = option;
-                button.className = 'btn-option bg-indigo-500 text-white font-bold py-4 rounded-xl text-3xl shadow-lg hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-150 ease-in-out';
+                button.className = 'btn-option bg-indigo-500 text-white font-bold py-4 rounded-xl text-3xl shadow-lg hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-300 transition duration-150 ease-in-out';
                 button.onclick = () => checkAnswer(option);
                 optionsContainer.appendChild(button);
             });
@@ -848,6 +985,8 @@
             }, 1000);
         }
 
+        // --- Initialization ---
+
         /**
          * Initializes the game.
          */
@@ -862,6 +1001,30 @@
                     switchMode(op);
                 });
             });
+
+            // Setup Regrouping Toggle listener and initial state
+            regroupingToggle.checked = showRegrouping; // Sync initial state
+            regroupingToggle.addEventListener('change', (event) => {
+                showRegrouping = event.target.checked;
+                // If in subtraction mode, refresh the visual to reflect the change immediately
+                if (currentOperation === '-') {
+                    renderVisualization();
+                }
+            });
+            
+            // Handle the visual update for the switch's dot position on load and click
+            const initialDot = regroupingToggle.closest('.toggle-switch-container').querySelector('.dot');
+            const updateDotPosition = (checked) => {
+                initialDot.style.transform = checked ? 'translateX(100%)' : 'translateX(0)';
+            };
+
+            // Initial visual update based on default state
+            updateDotPosition(showRegrouping);
+
+            regroupingToggle.addEventListener('click', (e) => {
+                updateDotPosition(e.target.checked);
+            });
+
 
             // Start in the default Addition mode
             switchMode('+'); 
