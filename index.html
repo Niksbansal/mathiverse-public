@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Use Inter font -->
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        @import url('https://fonts.fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             /* High Contrast Space Background */
@@ -161,7 +161,7 @@
                 </div>
 
                 <!-- Toggle for Regrouping/Borrowing -->
-                <div class="flex justify-between items-center bg-purple-100 p-3 rounded-lg shadow-inner" id="regroupingToggleContainer">
+                <div id="regroupingToggleContainer" class="flex justify-between items-center bg-purple-100 p-3 rounded-lg shadow-inner" style="display: none;">
                     <span class="text-lg font-bold text-purple-900">Show Regrouping/Borrowing Steps (Advanced Subtraction)</span>
                     
                     <label for="regroupingToggle" class="flex items-center cursor-pointer toggle-switch-container">
@@ -173,7 +173,7 @@
                     </label>
                 </div>
 
-                <!-- Score, Level & Reset (Hidden for Learning Modes) -->
+                <!-- Score, Level & Reset -->
                 <div id="scoreInfo" class="flex justify-between items-center pt-2">
                     <div class="text-lg font-bold text-gray-700">
                         Score: <span id="score" class="text-green-600">0</span>
@@ -189,13 +189,14 @@
 
             <!-- Main Content Area -->
             <div id="mainContent">
-                <!-- Visualization Area (Arithmetic & Place Value) -->
+                <!-- Visualization Area -->
                 <div id="visualizationArea" class="visual-container bg-purple-900/90 rounded-xl mb-4 text-center">
-                    <!-- Visual elements will be drawn here -->
+                    <!-- Initial Content for Visualization -->
+                    <p class="text-white text-xl p-4">Select an operation to begin learning with interactive visualizations!</p>
                 </div>
 
                 <!-- Problem and Hint Display -->
-                <div id="problemContainer" class="problem-glow text-center p-6 bg-purple-100 rounded-xl mb-6">
+                <div id="problemContainer" class="text-center p-6 bg-purple-100 rounded-xl mb-6">
                     <p id="problemText" class="text-3xl sm:text-4xl font-black text-purple-900 mb-2">
                         Select an operation to begin!
                     </p>
@@ -204,12 +205,12 @@
                     </button>
                 </div>
 
-                <!-- Options/Buttons (Used for answers or concept selection) -->
+                <!-- Options/Buttons -->
                 <div id="optionsContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <!-- Buttons will be populated by JavaScript -->
                 </div>
                 
-                <!-- Lesson Content Area (Visible only for detailed lessons like Number Types) -->
+                <!-- Lesson Content Area -->
                 <div id="lessonContentArea" class="hidden">
                     <!-- Lesson content will be dynamically loaded here -->
                 </div>
@@ -233,8 +234,8 @@
         let score = 0;
         let skillLevel = 1; // AI-like adaptive difficulty
         let currentProblem = {};
-        let currentMode = 'arithmetic'; 
-        let currentOperation = '+'; // Default to addition
+        let currentMode = 'initial'; 
+        let currentOperation = null; // Changed default to null
         let hintUsed = false;
         let showRegrouping = true; // Defaulted to TRUE to enable borrowing visuals
 
@@ -247,7 +248,7 @@
         const OPTIONS_RANGE = 5;
         const BASE_TEN_THRESHOLD = 20; // Use Base-Ten blocks when numbers are 20 or greater.
 
-        // DOM elements
+        // DOM elements (These are globally defined based on the initial HTML structure)
         const scoreElement = document.getElementById('score');
         const skillLevelDisplay = document.getElementById('skillLevelDisplay');
         const problemTextElement = document.getElementById('problemText');
@@ -428,19 +429,18 @@
             regroupingToggleContainer.style.display = 'none';
             optionsContainer.innerHTML = '';
             optionsContainer.classList.add('hidden');
-            hintButton.style.display = 'none';
+            
+            // MANDATORY CHANGE: Hide the Hint Button when in Learning/Tutorial Mode
+            hintButton.style.display = 'none'; 
+            
             problemContainer.classList.remove('problem-glow');
-
-            // Set up example values for the visualization header
-            const exampleNum1 = 3;
-            const exampleNum2 = 4;
-            const exampleOperator = '+';
-
-            // Render the example visualization
-            renderVisualization(exampleNum1, exampleNum2, exampleOperator);
+            
+            // MANDATORY CHANGE: Hide the Visualization Area when in Learning/Tutorial Mode
+            visualizationArea.style.display = 'none'; 
+            visualizationArea.innerHTML = ''; // Clear any previous content
 
             // Update problem container for the lesson
-            problemTextElement.innerHTML = `<span class="text-4xl sm:text-5xl font-extrabold text-purple-900">Let's Learn Addition! ${exampleNum1} + ${exampleNum2} = ?</span>`;
+            problemTextElement.innerHTML = `<span class="text-4xl sm:text-5xl font-extrabold text-purple-900">Let's Learn Addition!</span>`;
             
             lessonContentArea.classList.remove('hidden');
             lessonContentArea.innerHTML = `
@@ -484,12 +484,12 @@
                             </p>
                         </div>
 
-                        <!-- Example 4: Money/Shopping (UPDATED) -->
+                        <!-- Example 4: Money/Shopping -->
                         <div class="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500 shadow-md">
                             <p class="text-xl font-bold text-gray-900 mb-1">💰 Money Example:</p>
                             <p class="text-lg text-gray-700">
-                                You save **$4** from allowance. You earn **$3** from doing chores.
-                                Your total savings is 4 + 3 = **$7**!
+                                You save **4 dollars** from allowance. You earn **3 dollars** from doing chores.
+                                Your total savings is 4 + 3 = **7 dollars**!
                             </p>
                         </div>
 
@@ -514,6 +514,11 @@
                 lessonContentArea.classList.add('hidden');
                 scoreInfo.classList.remove('hidden');
                 optionsContainer.classList.remove('hidden');
+
+                // *** FIX: Explicitly ensure the Hint Button and Visualization are visible for the test ***
+                visualizationArea.style.display = 'flex'; // Show visualization when test starts
+                document.getElementById('hintButton').style.display = 'block'; // Show hint button when test starts
+                
                 generateProblem(); // Start the actual game problems
             };
 
@@ -527,6 +532,12 @@
          */
         function generateProblem() {
             hintUsed = false;
+
+            if (!currentOperation) {
+                console.error("Attempted to generate problem without selecting an operation.");
+                return;
+            }
+
             // Determine difficulty bounds based on skill level
             let max = Math.floor(skillLevel) * 10;
             if (skillLevel <= 2) max = Math.min(20, max);
@@ -558,13 +569,15 @@
             
             displayProblem();
             displayOptions();
-            renderVisualization(num1, num2, currentOperation);
+            // Visualization is rendered here when practice starts
+            renderVisualization(num1, num2, currentOperation); 
         }
 
         function displayProblem() {
             problemTextElement.textContent = currentProblem.problemStr;
             problemContainer.classList.add('problem-glow');
-            hintButton.style.display = 'block';
+            // Hint button is shown here when problems are active (Redundant but safe)
+            hintButton.style.display = 'block'; 
         }
 
         function displayOptions() {
@@ -598,24 +611,6 @@
                 button.onclick = () => checkAnswer(option);
                 optionsContainer.appendChild(button);
             });
-        }
-
-        function checkAnswer(selectedAnswer) {
-            if (selectedAnswer === currentProblem.answer) {
-                score++;
-                scoreElement.textContent = score;
-                adjustSkill(true);
-            } else {
-                adjustSkill(false);
-            }
-            
-            // Animate the problem container briefly
-            problemContainer.classList.remove('problem-glow');
-            problemContainer.classList.add('animate-ping-once');
-            setTimeout(() => {
-                problemContainer.classList.remove('animate-ping-once');
-                generateProblem();
-            }, 1000); // 1 second pause to see feedback
         }
 
         function showHint() {
@@ -674,6 +669,7 @@
             hintButton.style.display = 'none'; // Hide hint button in lesson mode
             optionsContainer.innerHTML = ''; 
             optionsContainer.className = 'grid grid-cols-2 sm:grid-cols-3 gap-4';
+            visualizationArea.style.display = 'none'; // Ensure visualization is hidden
 
             Object.keys(numberTypeLessons).forEach(key => {
                 const lesson = numberTypeLessons[key];
@@ -736,7 +732,7 @@
             currentOperation = newOperation;
             const newMode = newOperation === 'place_value' 
                 ? 'place_value' 
-                : (newOperation === 'number_types' ? 'number_types' : 'arithmetic'); // Removed currency mode
+                : (newOperation === 'number_types' ? 'number_types' : 'arithmetic');
             currentMode = newMode;
             
             // Reset UI states
@@ -745,9 +741,11 @@
             // Manage visibility of core elements based on mode
             const isProblemMode = currentMode === 'arithmetic' || currentMode === 'place_value';
             scoreInfo.classList.toggle('hidden', !isProblemMode);
+            // Only show regrouping toggle for Subtraction mode
             regroupingToggleContainer.style.display = currentOperation === '-' ? 'flex' : 'none';
 
-            // Reset problem container structure
+            // Reset problem container structure (to ensure all event listeners are clean)
+            problemContainer.classList.remove('hidden'); 
             problemContainer.innerHTML = `
                 <p id="problemText" class="text-3xl sm:text-4xl font-black text-purple-900 mb-2">
                     <!-- Content updated by JS -->
@@ -756,18 +754,19 @@
                     Need a Hint?
                 </button>
             `;
-            const hintBtn = document.getElementById('hintButton');
-            if (hintBtn) hintBtn.addEventListener('click', showHint);
             
-            // Ensure the hint button is shown for problem modes
-            if (hintBtn) hintBtn.style.display = isProblemMode ? 'block' : 'none';
+            // Re-bind the click listener to the NEW hint button element
+            const newHintBtn = document.getElementById('hintButton');
+            if (newHintBtn) newHintBtn.addEventListener('click', showHint);
+            
+            // Ensure the hint button is initially hidden for + mode tutorial, and shown for others
+            if (newHintBtn) newHintBtn.style.display = (currentOperation === '+' || !isProblemMode) ? 'none' : 'block';
 
             if (currentOperation === '+') {
-                 // Addition now starts with a tutorial
+                 // Addition now starts with a tutorial, hiding vis and hint
                  displayAdditionTutorial();
             } else if (isProblemMode) {
-                 // Other arithmetic modes start directly into problems
-                problemContainer.classList.remove('hidden');
+                 // Other arithmetic modes start directly into problems (vis and hint visible)
                 optionsContainer.classList.remove('hidden');
                 visualizationArea.style.display = 'flex';
                 optionsContainer.className = 'grid grid-cols-2 sm:grid-cols-4 gap-4'; // Reset grid for answers
@@ -775,6 +774,7 @@
             } else if (currentMode === 'number_types') {
                 // Number Types Mode
                 visualizationArea.style.display = 'none';
+                optionsContainer.classList.remove('hidden');
                 displayNumberTypeOptions();
             }
 
@@ -811,11 +811,47 @@
                     displayAdditionTutorial(); // Restart tutorial
                 } else if (currentMode === 'number_types') {
                     displayNumberTypeOptions();
+                } else if (currentOperation) { // If a problem mode was selected
+                    // Use switchMode to ensure all settings are correctly reset
+                    switchMode(currentOperation);
                 } else {
-                    generateProblem();
+                    setInitialState();
                 }
             }, 1000);
         }
+        
+        /**
+         * Sets the application state to its initial, neutral welcome screen.
+         */
+        function setInitialState() {
+            currentOperation = null;
+            currentMode = 'initial';
+
+            scoreInfo.classList.add('hidden');
+            regroupingToggleContainer.style.display = 'none';
+            lessonContentArea.classList.add('hidden');
+            optionsContainer.classList.add('hidden');
+            
+            problemContainer.classList.remove('hidden');
+            problemContainer.classList.remove('problem-glow');
+            problemTextElement.textContent = "Select an operation to begin!";
+
+            hintButton.style.display = 'none';
+            
+            // Neutralize button styles
+            document.querySelectorAll('.btn-mode').forEach(btn => {
+                btn.classList.remove('active-op');
+            });
+
+            // Set default visualization message
+            visualizationArea.style.display = 'flex';
+            visualizationArea.className = 'visual-container bg-purple-900/90 rounded-xl mb-4 text-center flex flex-col justify-center items-center';
+            visualizationArea.innerHTML = '<p class="text-white text-xl p-4">Select an operation to begin learning with interactive visualizations!</p>';
+
+            feedbackMessage.textContent = "Choose your operation above to start learning!";
+            feedbackContainer.className = 'mt-6 p-4 text-center rounded-lg min-h-[50px] flex items-center justify-center';
+        }
+
 
         // --- Initialization ---
 
@@ -824,6 +860,9 @@
          */
         window.onload = function() {
             document.getElementById('resetButton').addEventListener('click', () => resetGame(true));
+            
+            // Initial binding for the hint button (before any innerHTML changes)
+            hintButton.addEventListener('click', showHint);
 
             // Setup mode selector listeners
             document.querySelectorAll('.btn-mode').forEach(btn => {
@@ -855,8 +894,8 @@
             });
 
 
-            // Start in the default Addition mode
-            switchMode('+'); 
+            // Start in the neutral initial state
+            setInitialState(); 
         };
     </script>
 
