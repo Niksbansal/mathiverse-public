@@ -417,6 +417,22 @@
                 }
             }, 100);
         }
+        
+        // Function to check the answer (placeholder, as options are used)
+        function checkAnswer(selectedOption) {
+            const isCorrect = selectedOption === currentProblem.answer;
+
+            if (isCorrect) {
+                score++;
+                scoreElement.textContent = score;
+                adjustSkill(true);
+            } else {
+                adjustSkill(false);
+            }
+
+            // Always move to the next problem immediately after an answer is chosen
+            setTimeout(generateProblem, 500); 
+        }
 
         // --- Core Arithmetic and Game Logic ---
 
